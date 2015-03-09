@@ -286,24 +286,40 @@ module AwesomePrint
         args[-1] = "*#{args[-1]}" if method.arity < 0
       end
 
-      # method.to_s formats to handle:
-      #
-      # #<Method: Fixnum#zero?>
-      # #<Method: Fixnum(Integer)#years>
-      # #<Method: User(#<Module:0x00000103207c00>)#_username>
-      # #<Method: User(id: integer, username: string).table_name>
-      # #<Method: User(id: integer, username: string)(ActiveRecord::Base).current>
-      # #<UnboundMethod: Hello#world>
-      #
-      if method.to_s =~ /(Unbound)*Method: (.*)[#\.]/
+      owner = method_owner(method)
+
+      [ method.name.to_s, "(#{args.join(', ')})", owner.to_s ]
+    end
+
+    # method.to_s formats to handle:
+    #
+    # From MRI:
+    #
+    # #<Method: Fixnum#zero?>
+    # #<Method: Fixnum(Integer)#years>
+    # #<Method: User(#<Module:0x00000103207c00>)#_username>
+    # #<Method: User(id: integer, username: string).table_name>
+    # #<Method: User(id: integer, username: string)(ActiveRecord::Base).current>
+    # #<UnboundMethod: Hello#world>
+    # #<UnboundMethod: Array#[]>
+    #
+    # From Rubinius:
+    #
+    # #<Method: Module#at_exit (defined in #<Class:Kernel> at kernel/common/kernel.rb:216)>
+    # #<Method: Object#ap (defined in Kernel at /some/path/gems/awesome_print-1.6.1/lib/awesome_print/core_ext/kernel.rb:19)>
+    # #<Method: Module#at_exit (defined in #<Class:Kernel>)>
+    # #<Method: Foo#foo (defined in Foo from "class Foo; def foo; puts "foo"; end; end")>
+    def method_owner(method)
+      if method.to_s =~ /(Unbound)*Method: ([^#.]*)[#.]/
         unbound, klass = $1 && '(unbound)', $2
         if klass && klass =~ /(\(\w+:\s.*?\))/  # Is this ActiveRecord-style class?
           klass.sub!($1, '')                    # Yes, strip the fields leaving class name only.
         end
-        owner = "#{klass}#{unbound}".gsub('(', ' (')
+
+        return "#{klass}#{unbound}".gsub('(', ' (')
       end
 
-      [ method.name.to_s, "(#{args.join(', ')})", owner.to_s ]
+      return
     end
 
     # Format hash keys as plain strings regardless of underlying data type.
